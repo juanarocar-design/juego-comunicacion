@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Control de Jugador</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #121212;
+      color: #ffffff;
+      margin: 0;
+      padding: 15px;
+      text-align: center;
+    }
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    .team-select {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      margin-top: 50px;
+    }
+    .btn-team {
+      padding: 20px;
+      font-size: 22px;
+      font-weight: bold;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-team1 { background-color: #00fff0; color: #000; }
+    .btn-team2 { background-color: #ff007f; color: #fff; }
+
+    .buzzer-btn {
+      width: 100%;
+      height: 180px;
+      font-size: 32px;
+      font-weight: bold;
+      background-color: #ff4757;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      box-shadow: 0 8px 0 #2ed573;
+      margin: 20px 0;
+      cursor: pointer;
+    }
+    .buzzer-btn:active {
+      box-shadow: none;
+      transform: translateY(6px);
+    }
+    .opcion-btn {
+      width: 100%;
+      padding: 15px;
+      margin: 8px 0;
+      font-size: 18px;
+      background-color: #2f3542;
+      color: white;
+      border: 2px solid #57606f;
+      border-radius: 10px;
+    }
+    .opcion-btn:disabled {
+      opacity: 0.4;
+    }
+    .status-badge {
+      background-color: #333;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Selección de Equipo -->
+    <div id="seccionEquipo" class="team-select">
+      <h2>Selecciona tu Equipo</h2>
+      <button class="btn-team btn-team1" onclick="seleccionarEquipo('Equipo 1')">Equipo 1</button>
+      <button class="btn-team btn-team2" onclick="seleccionarEquipo('Equipo 2')">Equipo 2</button>
+    </div>
+
+    <!-- Área de Juego -->
+    <div id="seccionJuego" style="display: none;">
+      <div class="status-badge" id="infoEquipo"></div>
+
+      <!-- Botón Pulsador -->
+      <button id="btnPulsador" class="buzzer-btn" onclick="pedirTurno()">¡PEDIR TURNO!</button>
+
+      <!-- Opciones de Respuesta -->
+      <div id="contenedorOpciones" style="display: none;">
+        <h3>Elige tu respuesta:</h3>
+        <button class="opcion-btn" onclick="responder(0)" id="opt0"></button>
+        <button class="opcion-btn" onclick="responder(1)" id="opt1"></button>
+        <button class="opcion-btn" onclick="responder(2)" id="opt2"></button>
+        <button class="opcion-btn" onclick="responder(3)" id="opt3"></button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let miEquipo = null;
+
+    function seleccionarEquipo(equipo) {
+      miEquipo = equipo;
+      socket.emit('selectTeam', equipo);
+      document.getElementById('seccionEquipo').style.display = 'none';
+      document.getElementById('seccionJuego').style.display = 'block';
+      document.getElementById('infoEquipo').textContent = `Conectado como: ${equipo}`;
+    }
+
+    function pedirTurno() {
+      socket.emit('pedirTurno');
+    }
+
+    function responder(indice) {
+      socket.emit('enviarRespuesta', indice);
+      document.getElementById('contenedorOpciones').style.display = 'none';
+    }
+
+    socket.on('updateJugador', (data) => {
+      const opciones = data.opciones || [];
+      opciones.forEach((txt, i) => {
+        const btn = document.getElementById(`opt${i}`);
+        if (btn) btn.textContent = `${String.fromCharCode(65 + i)}) ${txt}`;
+      });
+
+      actualizarEstadoTurno(data.turno);
+    });
+
+    socket.on('turnoAsignado', (equipoConTurno) => {
+      actualizarEstadoTurno(equipoConTurno);
+    });
+
+    function actualizarEstadoTurno(equipoConTurno) {
+      const btnPulsador = document.getElementById('btnPulsador');
+      const contenedorOpciones = document.getElementById('contenedorOpciones');
+
+      if (!equipoConTurno) {
+        btnPulsador.disabled = false;
+        btnPulsador.style.opacity = "1";
+        btnPulsador.textContent = "¡PEDIR TURNO!";
+        contenedorOpciones.style.display = 'none';
+      } else if (equipoConTurno === miEquipo) {
+        btnPulsador.disabled = true;
+        btnPulsador.style.opacity = "0.5";
+        btnPulsador.textContent = "¡ES TU TURNO!";
+        contenedorOpciones.style.display = 'block';
+      } else {
+        btnPulsador.disabled = true;
+        btnPulsador.style.opacity = "0.3";
+        btnPulsador.textContent = `Turno de ${equipoConTurno}`;
+        contenedorOpciones.style.display = 'none';
+      }
+    }
+
+    socket.on('resultadoRespuesta', () => {
+      actualizarEstadoTurno(null);
+    });
+
+    socket.on('juegoReiniciado', () => {
+      location.reload();
+    });
+  </script>
+</body>
+</html>
