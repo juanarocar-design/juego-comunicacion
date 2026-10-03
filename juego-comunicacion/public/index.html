@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trivia de Comunicación - Moderador</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #1a1a2e;
+      color: #ffffff;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: #16213e;
+      padding: 15px 30px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    .score {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .team1 { color: #00fff0; }
+    .team2 { color: #ff007f; }
+    .card {
+      background-color: #0f3460;
+      padding: 30px;
+      border-radius: 15px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    .pregunta-titulo {
+      font-size: 28px;
+      margin-bottom: 25px;
+    }
+    .opciones-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+    .opcion {
+      background-color: #16213e;
+      padding: 20px;
+      border-radius: 8px;
+      font-size: 20px;
+      border: 2px solid #0f3460;
+    }
+    .turno-banner {
+      font-size: 26px;
+      font-weight: bold;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      background-color: #e94560;
+    }
+    button {
+      background-color: #e94560;
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      font-size: 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      margin: 5px;
+    }
+    button:hover {
+      background-color: #ff6b81;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="score team1">Equipo 1: <span id="score1">0</span> pts</div>
+    <div id="numeroPregunta" style="font-size: 20px; font-weight: bold;">Pregunta 1/10</div>
+    <div class="score team2">Equipo 2: <span id="score2">0</span> pts</div>
+  </div>
+
+  <div id="turnoBanner" class="turno-banner" style="display: none;"></div>
+
+  <div class="card">
+    <div class="pregunta-titulo" id="textoPregunta">Cargando pregunta...</div>
+    <div class="opciones-grid" id="contenedorOpciones"></div>
+  </div>
+
+  <div>
+    <button onclick="siguientePregunta()">Siguiente Pregunta ➔</button>
+    <button onclick="reiniciarJuego()" style="background-color: #555;">Reiniciar Juego 🔄</button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    const score1El = document.getElementById('score1');
+    const score2El = document.getElementById('score2');
+    const numeroPreguntaEl = document.getElementById('numeroPregunta');
+    const textoPreguntaEl = document.getElementById('textoPregunta');
+    const contenedorOpcionesEl = document.getElementById('contenedorOpciones');
+    const turnoBannerEl = document.getElementById('turnoBanner');
+
+    socket.on('updateModerador', (data) => {
+      score1El.textContent = data.score1;
+      score2El.textContent = data.score2;
+      numeroPreguntaEl.textContent = `Pregunta ${data.preguntaNumero}/${data.totalPreguntas}`;
+
+      if (data.pregunta) {
+        textoPreguntaEl.textContent = data.pregunta.pregunta;
+        contenedorOpcionesEl.innerHTML = '';
+        data.pregunta.respuestas.forEach((resp, index) => {
+          const div = document.createElement('div');
+          div.className = 'opcion';
+          div.textContent = `${String.fromCharCode(65 + index)}) ${resp}`;
+          contenedorOpcionesEl.appendChild(div);
+        });
+      }
+
+      if (data.turno) {
+        mostrarTurno(data.turno);
+      } else {
+        turnoBannerEl.style.display = 'none';
+      }
+    });
+
+    socket.on('turnoAsignado', (equipo) => {
+      mostrarTurno(equipo);
+    });
+
+    socket.on('resultadoRespuesta', (data) => {
+      score1El.textContent = data.score1;
+      score2El.textContent = data.score2;
+      if (data.esCorrecta) {
+        alert(`¡Correcto! ${data.equipo} sumó 10 puntos.`);
+      } else {
+        alert(`¡Incorrecto! La respuesta correcta era: ${data.respuestaCorrecta}`);
+      }
+      turnoBannerEl.style.display = 'none';
+    });
+
+    socket.on('finJuego', (data) => {
+      let ganador = "¡Empate!";
+      if (data.score1 > data.score2) ganador = "¡Ganó el Equipo 1!";
+      if (data.score2 > data.score1) ganador = "¡Ganó el Equipo 2!";
+      alert(`Juego Terminado. ${ganador}\nScore Final: Equipo 1 (${data.score1}) - Equipo 2 (${data.score2})`);
+    });
+
+    socket.on('juegoReiniciado', () => {
+      location.reload();
+    });
+
+    function mostrarTurno(equipo) {
+      turnoBannerEl.textContent = `🔔 ¡TURNO DE RESPONDER: ${equipo.toUpperCase()}!`;
+      turnoBannerEl.style.display = 'block';
+    }
+
+    function siguientePregunta() {
+      socket.emit('siguientePregunta');
+    }
+
+    function reiniciarJuego() {
+      if (confirm("¿Estás seguro de reiniciar la partida?")) {
+        socket.emit('reiniciarJuego');
+      }
+    }
+  </script>
+</body>
+</html>
